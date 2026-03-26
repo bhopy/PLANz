@@ -1,0 +1,923 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>PLANz</title>
+<style>
+  @font-face { font-family: 'Inter'; font-weight: 400; src: url('fonts/inter-400.ttf') format('truetype'); }
+  @font-face { font-family: 'Inter'; font-weight: 500; src: url('fonts/inter-500.ttf') format('truetype'); }
+  @font-face { font-family: 'Inter'; font-weight: 600; src: url('fonts/inter-600.ttf') format('truetype'); }
+  @font-face { font-family: 'Inter'; font-weight: 700; src: url('fonts/inter-700.ttf') format('truetype'); }
+
+  :root {
+    --bg-base: #000000;
+    --bg-surface: #0A0A0A;
+    --bg-card: #121212;
+    --bg-card-hover: #1A1A1A;
+    --bg-input: #0E0E0E;
+    --border: rgba(255,255,255,0.06);
+    --border-hover: rgba(255,255,255,0.12);
+    --text-primary: #E0E0E0;
+    --text-secondary: #A3A3A3;
+    --text-muted: #6B7280;
+    --text-heading: #F8FAFC;
+    --accent: #22D3EE;
+    --accent-glow: rgba(34,211,238,0.15);
+    --success: #22C55E;
+    --danger: #EF4444;
+    --link-color: #A855F7;
+    --radius: 12px;
+    --transition: 0.2s cubic-bezier(0.4, 0, 0.2, 1);
+  }
+
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  html, body { height: 100%; overflow: hidden; }
+
+  body {
+    font-family: 'Inter', -apple-system, BlinkMacSystemFont, sans-serif;
+    background: var(--bg-base);
+    color: var(--text-primary);
+    font-weight: 500;
+    line-height: 1.5;
+    letter-spacing: 0.01em;
+    display: flex;
+  }
+
+  /* ===== SPLIT LAYOUT ===== */
+  .panel-left {
+    width: 420px; min-width: 360px; height: 100vh;
+    overflow-y: auto; padding: 28px 24px;
+    border-right: 1px solid var(--border); flex-shrink: 0;
+  }
+  .panel-left::-webkit-scrollbar { width: 4px; }
+  .panel-left::-webkit-scrollbar-track { background: transparent; }
+  .panel-left::-webkit-scrollbar-thumb { background: #1A1A1A; border-radius: 2px; }
+
+  .panel-right { flex: 1; height: 100vh; position: relative; background: #000; }
+
+  #mapCanvas { width: 100%; height: 100%; cursor: grab; display: block; }
+  #mapCanvas:active { cursor: grabbing; }
+  #mapCanvas.link-mode { cursor: crosshair; }
+
+  .map-controls {
+    position: absolute; top: 12px; right: 12px;
+    display: flex; gap: 4px; z-index: 10;
+  }
+  .map-controls button {
+    height: 32px; padding: 0 10px; border-radius: 8px;
+    border: 1px solid var(--border); background: rgba(10,10,10,0.8);
+    backdrop-filter: blur(8px); color: var(--text-muted);
+    font-family: 'Inter', sans-serif; font-size: 12px; font-weight: 500;
+    cursor: pointer; transition: all var(--transition);
+    display: flex; align-items: center; justify-content: center; gap: 4px;
+  }
+  .map-controls button:hover { background: rgba(255,255,255,0.06); color: var(--text-primary); border-color: var(--border-hover); }
+  .map-controls .btn-link { min-width: 32px; }
+  .map-controls .btn-link.active {
+    background: rgba(168,85,247,0.15); color: var(--link-color);
+    border-color: rgba(168,85,247,0.4); box-shadow: 0 0 12px rgba(168,85,247,0.15);
+  }
+
+  .map-status {
+    position: absolute; top: 12px; left: 12px; z-index: 10;
+    font-size: 11px; color: var(--link-color); font-weight: 500;
+    background: rgba(10,10,10,0.85); backdrop-filter: blur(8px);
+    padding: 6px 12px; border-radius: 8px;
+    border: 1px solid rgba(168,85,247,0.3);
+    display: none;
+  }
+  .map-status.show { display: block; }
+
+  .map-hint {
+    position: absolute; bottom: 10px; left: 50%;
+    transform: translateX(-50%); font-size: 10px;
+    color: #222; white-space: nowrap;
+  }
+
+  /* ===== HEADER ===== */
+  .header { text-align: center; margin-bottom: 28px; }
+  .header h1 { font-size: 24px; font-weight: 700; color: var(--text-heading); letter-spacing: 2px; }
+  .header h1 span { color: var(--accent); }
+  .header p { color: var(--text-muted); font-size: 12px; margin-top: 4px; font-weight: 400; }
+
+  /* ===== INPUT AREA ===== */
+  .input-area { display: flex; gap: 6px; margin-bottom: 20px; }
+  .input-area input {
+    flex: 1; padding: 11px 14px; background: var(--bg-input); border: 1px solid var(--border);
+    border-radius: var(--radius); color: var(--text-primary); font-family: inherit;
+    font-size: 14px; font-weight: 500; outline: none;
+    transition: border-color var(--transition), box-shadow var(--transition);
+  }
+  .input-area input:focus { border-color: var(--accent); box-shadow: 0 0 0 3px var(--accent-glow); }
+  .input-area input::placeholder { color: var(--text-muted); }
+
+  .btn-add {
+    padding: 11px 18px; background: var(--accent); color: #000; border: none;
+    border-radius: var(--radius); font-family: inherit; font-size: 14px; font-weight: 700;
+    cursor: pointer; transition: all var(--transition); white-space: nowrap;
+  }
+  .btn-add:hover { opacity: 0.85; }
+
+  /* ===== COUNTER ===== */
+  .counter { display: flex; justify-content: space-between; align-items: center; margin-bottom: 10px; padding: 0 2px; }
+  .counter span { font-size: 12px; color: var(--text-muted); font-weight: 400; }
+  .counter .count { color: var(--accent); font-weight: 600; }
+
+  /* ===== IDEA LIST ===== */
+  .idea-list { min-height: 40px; }
+
+  .idea-card {
+    display: flex; align-items: center; gap: 10px; padding: 10px 12px;
+    background: var(--bg-card); border: 1px solid var(--border); border-radius: 10px;
+    margin-bottom: 5px; transition: all var(--transition); user-select: none;
+  }
+  .idea-card:hover { background: var(--bg-card-hover); border-color: var(--border-hover); }
+  .idea-card.dragging { opacity: 0.3; transform: scale(0.98); }
+  .idea-card.drag-over { border-color: var(--accent); box-shadow: 0 0 0 1px var(--accent); }
+  .idea-card.done { opacity: 0.4; }
+  .idea-card.done .idea-text { text-decoration: line-through; color: var(--text-muted); }
+  .idea-card.has-parent { border-left: 2px solid rgba(168,85,247,0.3); }
+
+  .rank { font-size: 11px; font-weight: 600; color: var(--text-muted); min-width: 18px; text-align: center; }
+
+  .drag-handle { cursor: grab; color: #333; display: flex; flex-direction: column; gap: 2px; padding: 3px 2px; transition: color var(--transition); }
+  .drag-handle:hover { color: #666; }
+  .drag-handle:active { cursor: grabbing; }
+  .drag-handle span { display: block; width: 12px; height: 2px; background: currentColor; border-radius: 1px; }
+
+  .checkbox { width: 20px; height: 20px; border: 2px solid #333; border-radius: 50%; cursor: pointer; flex-shrink: 0; position: relative; transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1); }
+  .checkbox:hover { border-color: #555; }
+  .checkbox.checked { background: var(--success); border-color: var(--success); }
+  .checkbox.checked::after { content: ''; position: absolute; top: 2px; left: 5px; width: 5px; height: 8px; border: solid #000; border-width: 0 2px 2px 0; transform: rotate(45deg); }
+
+  .idea-text { flex: 1; font-size: 13px; line-height: 1.4; transition: all var(--transition); word-break: break-word; }
+  .idea-parent-tag { font-size: 10px; color: var(--link-color); opacity: 0.6; display: block; margin-top: 2px; }
+
+  .move-btns { display: flex; flex-direction: column; gap: 0; }
+  .move-btn { background: none; border: none; color: #333; cursor: pointer; padding: 0 4px; font-size: 9px; line-height: 1; transition: color var(--transition); }
+  .move-btn:hover { color: var(--accent); }
+  .move-btn:disabled { opacity: 0; cursor: default; }
+
+  .btn-del { background: none; border: none; color: #2A2A2A; cursor: pointer; padding: 2px 6px; font-size: 16px; line-height: 1; transition: color var(--transition); font-weight: 300; }
+  .btn-del:hover { color: var(--danger); }
+
+  .empty { text-align: center; padding: 40px 16px; border: 1px dashed rgba(255,255,255,0.06); border-radius: var(--radius); color: var(--text-muted); font-size: 13px; }
+  .empty .icon { font-size: 28px; margin-bottom: 10px; opacity: 0.3; }
+
+  /* ===== TOOLBAR ===== */
+  .toolbar { display: flex; gap: 6px; margin-top: 16px; flex-wrap: wrap; }
+  .toolbar button {
+    padding: 8px 14px; border-radius: 10px; border: 1px solid var(--border);
+    background: var(--bg-card); color: var(--text-secondary); font-family: inherit;
+    font-size: 12px; font-weight: 500; cursor: pointer; transition: all var(--transition);
+  }
+  .toolbar button:hover { border-color: var(--border-hover); background: var(--bg-card-hover); color: var(--text-primary); }
+  .toolbar .btn-copy-prompt { border-color: rgba(34,211,238,0.2); color: var(--accent); }
+  .toolbar .btn-copy-prompt:hover { background: rgba(34,211,238,0.08); border-color: rgba(34,211,238,0.4); }
+  .toolbar .btn-copy-prompt.copied { background: var(--success); color: #000; border-color: var(--success); }
+  .toolbar .btn-danger { color: #555; }
+  .toolbar .btn-danger:hover { border-color: rgba(239,68,68,0.3); color: var(--danger); background: rgba(239,68,68,0.06); }
+  .toolbar .spacer { flex: 1; }
+
+  /* ===== OUTPUT PREVIEW ===== */
+  .output-section { margin-top: 20px; }
+  .output-toggle { background: none; border: none; color: var(--text-muted); font-family: inherit; font-size: 12px; font-weight: 500; cursor: pointer; padding: 6px 0; transition: color var(--transition); display: flex; align-items: center; gap: 5px; }
+  .output-toggle:hover { color: var(--text-secondary); }
+  .output-toggle .arrow { transition: transform var(--transition); font-size: 9px; }
+  .output-toggle .arrow.open { transform: rotate(90deg); }
+  .output-box { background: var(--bg-surface); border: 1px solid var(--border); border-radius: 10px; padding: 12px 16px; font-family: 'Cascadia Code', 'Consolas', 'Courier New', monospace; font-size: 12px; line-height: 1.6; white-space: pre-wrap; color: var(--text-secondary); max-height: 200px; overflow-y: auto; margin-top: 6px; display: none; }
+  .output-box.show { display: block; }
+
+  /* ===== SAVED PLANS ===== */
+  .saved-section { margin-top: 24px; padding-top: 20px; border-top: 1px solid var(--border); }
+  .saved-section h2 { font-size: 14px; font-weight: 600; color: var(--text-secondary); margin-bottom: 12px; }
+  .save-row { display: flex; gap: 6px; margin-bottom: 12px; }
+  .save-row input { flex: 1; padding: 8px 12px; background: var(--bg-input); border: 1px solid var(--border); border-radius: 10px; color: var(--text-primary); font-family: inherit; font-size: 13px; font-weight: 500; outline: none; transition: border-color var(--transition), box-shadow var(--transition); }
+  .save-row input:focus { border-color: var(--accent); box-shadow: 0 0 0 3px var(--accent-glow); }
+  .save-row input::placeholder { color: var(--text-muted); }
+  .btn-save { padding: 8px 14px; background: var(--bg-card); border: 1px solid var(--border); border-radius: 10px; color: var(--text-secondary); font-family: inherit; font-size: 12px; font-weight: 600; cursor: pointer; transition: all var(--transition); white-space: nowrap; }
+  .btn-save:hover { border-color: var(--border-hover); color: var(--text-primary); }
+  .saved-item { display: flex; justify-content: space-between; align-items: center; padding: 9px 12px; background: var(--bg-card); border: 1px solid var(--border); border-radius: 10px; margin-bottom: 5px; transition: all var(--transition); }
+  .saved-item:hover { border-color: var(--border-hover); }
+  .saved-item-info { display: flex; align-items: center; gap: 8px; }
+  .saved-item-name { font-size: 13px; font-weight: 500; }
+  .saved-item-meta { font-size: 11px; color: var(--text-muted); font-weight: 400; }
+  .saved-item-actions { display: flex; gap: 2px; }
+  .saved-item-actions button { background: none; border: none; color: var(--text-muted); cursor: pointer; padding: 4px 8px; border-radius: 6px; font-family: inherit; font-size: 11px; font-weight: 500; transition: all var(--transition); }
+  .saved-item-actions .load:hover { color: var(--success); background: rgba(34,197,94,0.08); }
+  .saved-item-actions .del:hover { color: var(--danger); background: rgba(239,68,68,0.08); }
+
+  .footer { text-align: center; margin-top: 24px; font-size: 10px; color: #2A2A2A; font-weight: 400; }
+  .footer kbd { background: #1A1A1A; padding: 1px 5px; border-radius: 3px; font-family: inherit; font-size: 10px; }
+
+  .resize-handle { width: 5px; cursor: col-resize; background: transparent; flex-shrink: 0; position: relative; z-index: 5; transition: background var(--transition); }
+  .resize-handle:hover, .resize-handle.active { background: rgba(34,211,238,0.15); }
+</style>
+</head>
+<body>
+
+<div class="panel-left" id="panelLeft">
+  <div class="header">
+    <h1>PLAN<span>z</span></h1>
+    <p>Rank your ideas. Check them off. Ship them.</p>
+  </div>
+
+  <div class="input-area">
+    <input type="text" id="ideaInput" placeholder="What's the idea?" autofocus>
+    <button class="btn-add" onclick="addIdea()">Add</button>
+  </div>
+
+  <div class="counter" id="counter"></div>
+  <div class="idea-list" id="ideaList"></div>
+
+  <div class="toolbar" id="toolbar" style="display:none;">
+    <button class="btn-copy-prompt" id="copyBtn" onclick="copyPrompt()">Copy as prompt</button>
+    <button onclick="toggleDone()">Hide done</button>
+    <div class="spacer"></div>
+    <button class="btn-danger" onclick="clearDone()">Clear done</button>
+    <button class="btn-danger" onclick="clearAll()">Clear all</button>
+  </div>
+
+  <div class="output-section" id="outputSection" style="display:none;">
+    <button class="output-toggle" onclick="toggleOutput()">
+      <span class="arrow" id="outputArrow">&#9654;</span> Preview prompt
+    </button>
+    <div class="output-box" id="outputBox"></div>
+  </div>
+
+  <div class="saved-section">
+    <h2>Saved Plans</h2>
+    <div class="save-row">
+      <input type="text" id="planName" placeholder="Name this plan...">
+      <button class="btn-save" onclick="savePlan()">Save</button>
+    </div>
+    <div id="savedList"></div>
+  </div>
+
+  <p class="footer">
+    <kbd>Enter</kbd> add &middot; Drag reorder &middot; Click circle = done
+  </p>
+</div>
+
+<div class="resize-handle" id="resizeHandle"></div>
+
+<div class="panel-right" id="panelRight">
+  <canvas id="mapCanvas"></canvas>
+  <div class="map-controls">
+    <button class="btn-link" id="linkBtn" onclick="toggleLinkMode()" title="Connect ideas">Link</button>
+    <button onclick="mapZoom(1.25)" title="Zoom in">+</button>
+    <button onclick="mapZoom(0.8)" title="Zoom out">&minus;</button>
+    <button onclick="mapReset()" title="Reset view">&#8634;</button>
+  </div>
+  <div class="map-status" id="mapStatus"></div>
+  <div class="map-hint" id="mapHint">Scroll to zoom &middot; Drag to pan &middot; Click node to toggle done</div>
+</div>
+
+<script>
+let ideas = JSON.parse(localStorage.getItem('planz_ideas') || '[]');
+// Migrate old ideas without parentId
+ideas.forEach(i => { if (i.parentId === undefined) i.parentId = null; });
+
+let hideDone = false;
+let dragIdx = null;
+let outputOpen = false;
+
+const $ = id => document.getElementById(id);
+
+$('ideaInput').addEventListener('keydown', e => {
+  if (e.key === 'Enter') { e.preventDefault(); addIdea(); }
+});
+
+function addIdea() {
+  const input = $('ideaInput');
+  const text = input.value.trim();
+  if (!text) return;
+  ideas.push({ text, done: false, id: Date.now(), parentId: null });
+  input.value = '';
+  save(); render();
+  input.focus();
+}
+
+function toggleDoneState(id) {
+  const idea = ideas.find(i => i.id === id);
+  if (idea) idea.done = !idea.done;
+  save(); render();
+}
+
+function removeIdea(id) {
+  // Orphan children back to center
+  ideas.forEach(i => { if (i.parentId === id) i.parentId = null; });
+  ideas = ideas.filter(i => i.id !== id);
+  save(); render();
+}
+
+function moveUp(idx) {
+  if (idx <= 0) return;
+  [ideas[idx - 1], ideas[idx]] = [ideas[idx], ideas[idx - 1]];
+  save(); render();
+}
+
+function moveDown(idx) {
+  if (idx >= ideas.length - 1) return;
+  [ideas[idx], ideas[idx + 1]] = [ideas[idx + 1], ideas[idx]];
+  save(); render();
+}
+
+function getParentName(parentId) {
+  if (!parentId) return null;
+  const p = ideas.find(i => i.id === parentId);
+  return p ? p.text : null;
+}
+
+function save() {
+  localStorage.setItem('planz_ideas', JSON.stringify(ideas));
+}
+
+function render() {
+  const list = $('ideaList');
+  const filtered = hideDone ? ideas.filter(i => !i.done) : ideas;
+  const doneCount = ideas.filter(i => i.done).length;
+  const total = ideas.length;
+
+  if (total > 0) {
+    $('counter').innerHTML = `<span><span class="count">${total}</span> ideas</span><span>${doneCount} done</span>`;
+    $('toolbar').style.display = 'flex';
+    $('outputSection').style.display = 'block';
+  } else {
+    $('counter').innerHTML = '';
+    $('toolbar').style.display = 'none';
+    $('outputSection').style.display = 'none';
+  }
+
+  if (filtered.length === 0 && total === 0) {
+    list.innerHTML = '<div class="empty"><div class="icon">+</div>Type an idea and hit Enter</div>';
+    $('outputBox').textContent = '';
+    return;
+  }
+  if (filtered.length === 0) {
+    list.innerHTML = '<div class="empty" style="padding:24px;">All done. Nice.</div>';
+    renderOutput(); return;
+  }
+
+  list.innerHTML = filtered.map((idea) => {
+    const realIdx = ideas.indexOf(idea);
+    const parentName = getParentName(idea.parentId);
+    const parentTag = parentName ? `<span class="idea-parent-tag">requires: ${esc(parentName.substring(0, 30))}${parentName.length > 30 ? '...' : ''}</span>` : '';
+    return `
+    <div class="idea-card ${idea.done ? 'done' : ''} ${idea.parentId ? 'has-parent' : ''}" draggable="true" data-idx="${realIdx}"
+         ondragstart="onDragStart(event, ${realIdx})" ondragover="onDragOver(event)"
+         ondragleave="onDragLeave(event)" ondrop="onDrop(event, ${realIdx})" ondragend="onDragEnd(event)">
+      <span class="rank">${realIdx + 1}</span>
+      <span class="drag-handle"><span></span><span></span><span></span></span>
+      <div class="checkbox ${idea.done ? 'checked' : ''}" onclick="toggleDoneState(${idea.id})"></div>
+      <span class="idea-text">${esc(idea.text)}${parentTag}</span>
+      <div class="move-btns">
+        <button class="move-btn" onclick="moveUp(${realIdx})" ${realIdx === 0 ? 'disabled' : ''}>&#9650;</button>
+        <button class="move-btn" onclick="moveDown(${realIdx})" ${realIdx === ideas.length - 1 ? 'disabled' : ''}>&#9660;</button>
+      </div>
+      <button class="btn-del" onclick="removeIdea(${idea.id})">&times;</button>
+    </div>`;
+  }).join('');
+  renderOutput();
+}
+
+function esc(s) { return s.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;'); }
+
+// Drag & drop
+function onDragStart(e, idx) { dragIdx = idx; e.target.closest('.idea-card').classList.add('dragging'); e.dataTransfer.effectAllowed = 'move'; }
+function onDragOver(e) { e.preventDefault(); e.currentTarget.classList.add('drag-over'); }
+function onDragLeave(e) { e.currentTarget.classList.remove('drag-over'); }
+function onDrop(e, idx) {
+  e.preventDefault(); e.currentTarget.classList.remove('drag-over');
+  if (dragIdx === null || dragIdx === idx) return;
+  const item = ideas.splice(dragIdx, 1)[0]; ideas.splice(idx, 0, item);
+  dragIdx = null; save(); render();
+}
+function onDragEnd(e) {
+  const card = e.target.closest('.idea-card'); if (card) card.classList.remove('dragging');
+  document.querySelectorAll('.drag-over').forEach(el => el.classList.remove('drag-over')); dragIdx = null;
+}
+
+// Output
+function renderOutput() {
+  const pending = ideas.filter(i => !i.done), done = ideas.filter(i => i.done);
+  let lines = [];
+  if (pending.length) pending.forEach((idea, i) => {
+    const pName = getParentName(idea.parentId);
+    lines.push(`${i + 1}. ${idea.text}${pName ? ' (requires: ' + pName + ')' : ''}`);
+  });
+  if (done.length) { lines.push(''); lines.push('Done:'); done.forEach(idea => lines.push(`  [x] ${idea.text}`)); }
+  $('outputBox').textContent = lines.join('\n');
+}
+function toggleOutput() {
+  outputOpen = !outputOpen;
+  $('outputBox').classList.toggle('show', outputOpen);
+  $('outputArrow').classList.toggle('open', outputOpen);
+}
+function copyPrompt() {
+  const text = $('outputBox').textContent; if (!text) return;
+  navigator.clipboard.writeText(text).then(() => {
+    const btn = $('copyBtn'); btn.textContent = 'Copied!'; btn.classList.add('copied');
+    setTimeout(() => { btn.textContent = 'Copy as prompt'; btn.classList.remove('copied'); }, 1200);
+  });
+}
+function toggleDone() { hideDone = !hideDone; render(); }
+function clearDone() {
+  const count = ideas.filter(i => i.done).length; if (!count) return;
+  if (!confirm(`Remove ${count} completed idea${count > 1 ? 's' : ''}?`)) return;
+  const doneIds = new Set(ideas.filter(i => i.done).map(i => i.id));
+  ideas.forEach(i => { if (doneIds.has(i.parentId)) i.parentId = null; });
+  ideas = ideas.filter(i => !i.done); save(); render();
+}
+function clearAll() {
+  if (!ideas.length) return; if (!confirm('Clear all ideas?')) return;
+  ideas = []; save(); render();
+}
+
+// Saved plans
+function savePlan() {
+  const name = $('planName').value.trim(); if (!name) { $('planName').focus(); return; }
+  const plans = JSON.parse(localStorage.getItem('planz_saved') || '[]');
+  plans.push({ name, ideas: JSON.parse(JSON.stringify(ideas)), date: new Date().toLocaleDateString(), count: ideas.length });
+  localStorage.setItem('planz_saved', JSON.stringify(plans)); $('planName').value = ''; renderSaved();
+}
+function loadPlan(idx) {
+  const plans = JSON.parse(localStorage.getItem('planz_saved') || '[]'); if (!plans[idx]) return;
+  ideas = plans[idx].ideas.map(i => ({ ...i, id: i.id || Date.now() + Math.random(), parentId: i.parentId || null }));
+  save(); render();
+}
+function deletePlan(idx) {
+  const plans = JSON.parse(localStorage.getItem('planz_saved') || '[]'); plans.splice(idx, 1);
+  localStorage.setItem('planz_saved', JSON.stringify(plans)); renderSaved();
+}
+function renderSaved() {
+  const plans = JSON.parse(localStorage.getItem('planz_saved') || '[]');
+  const el = $('savedList'); if (!plans.length) { el.innerHTML = ''; return; }
+  el.innerHTML = plans.map((p, i) => `
+    <div class="saved-item">
+      <div class="saved-item-info">
+        <span class="saved-item-name">${esc(p.name)}</span>
+        <span class="saved-item-meta">${p.date} &middot; ${p.count} ideas</span>
+      </div>
+      <div class="saved-item-actions">
+        <button class="load" onclick="loadPlan(${i})">Load</button>
+        <button class="del" onclick="deletePlan(${i})">Delete</button>
+      </div>
+    </div>`).join('');
+}
+
+// ===================================================================
+// RESIZABLE PANEL
+// ===================================================================
+const resizeHandle = $('resizeHandle');
+const panelLeft = $('panelLeft');
+let resizing = false;
+
+resizeHandle.addEventListener('mousedown', e => { resizing = true; resizeHandle.classList.add('active'); e.preventDefault(); });
+document.addEventListener('mousemove', e => {
+  if (!resizing) return;
+  panelLeft.style.width = Math.max(300, Math.min(700, e.clientX)) + 'px';
+  resizeCanvas();
+});
+document.addEventListener('mouseup', () => { if (resizing) { resizing = false; resizeHandle.classList.remove('active'); } });
+
+// ===================================================================
+// MIND MAP
+// ===================================================================
+const canvas = $('mapCanvas');
+const ctx = canvas.getContext('2d');
+let cam = { x: 0, y: 0, zoom: 1 };
+let mapDrag = { active: false, sx: 0, sy: 0, cx: 0, cy: 0 };
+let nodeRects = []; // screen-space rects for hit detection
+let hoveredNode = -1;
+let nodeDrag = { active: false, id: null, sx: 0, sy: 0, ox: 0, oy: 0, moved: false };
+let manualPositions = JSON.parse(localStorage.getItem('planz_positions') || '{}');
+function savePositions() { localStorage.setItem('planz_positions', JSON.stringify(manualPositions)); }
+let pulse = 0;
+
+// Link mode
+let linkMode = false;
+let linkSource = null; // idea id of the first clicked node
+let mouseX = 0, mouseY = 0; // for drawing preview line
+
+function toggleLinkMode() {
+  linkMode = !linkMode;
+  linkSource = null;
+  $('linkBtn').classList.toggle('active', linkMode);
+  canvas.classList.toggle('link-mode', linkMode);
+  updateMapStatus();
+  $('mapHint').textContent = linkMode
+    ? 'Click a parent node, then click a child to connect. Click a linked child to unlink.'
+    : 'Scroll to zoom \u00b7 Drag background to pan \u00b7 Drag node to move \u00b7 Click node to toggle done';
+}
+
+function updateMapStatus() {
+  const status = $('mapStatus');
+  if (!linkMode) { status.classList.remove('show'); return; }
+  if (linkSource) {
+    const src = ideas.find(i => i.id === linkSource);
+    status.textContent = `Linking from: "${src ? src.text.substring(0, 25) : '?'}..." \u2014 click target node`;
+  } else {
+    status.textContent = 'Link mode: click a parent node first';
+  }
+  status.classList.add('show');
+}
+
+function resizeCanvas() {
+  const panel = $('panelRight');
+  const dpr = window.devicePixelRatio || 1;
+  const w = panel.clientWidth, h = panel.clientHeight;
+  canvas.width = w * dpr; canvas.height = h * dpr;
+  canvas.style.width = w + 'px'; canvas.style.height = h + 'px';
+  ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+}
+
+window.addEventListener('resize', () => { resizeCanvas(); });
+
+function mapZoom(factor) { cam.zoom = Math.max(0.3, Math.min(3, cam.zoom * factor)); }
+function mapReset() { cam = { x: 0, y: 0, zoom: 1 }; }
+
+// ===================================================================
+// TREE LAYOUT
+// ===================================================================
+// Build a tree: root nodes (no parent) go around center.
+// Children of each node branch out from that node.
+let nodePositions = new Map(); // id -> { x, y }
+
+function computeTreeLayout() {
+  nodePositions.clear();
+  if (ideas.length === 0) return;
+
+  // Apply manual positions first
+  for (const idea of ideas) {
+    if (manualPositions[idea.id]) {
+      nodePositions.set(idea.id, { ...manualPositions[idea.id] });
+    }
+  }
+
+  const idSet = new Set(ideas.map(i => i.id));
+  // Roots: no parent, or parent doesn't exist
+  const roots = ideas.filter(i => !i.parentId || !idSet.has(i.parentId));
+  const childrenOf = (pid) => ideas.filter(i => i.parentId === pid);
+
+  // Layout roots around center (skip manually positioned)
+  const autoRoots = roots.filter(r => !manualPositions[r.id]);
+  const rootRadius = Math.max(160, roots.length * 30);
+  roots.forEach((root, i) => {
+    const angle = -Math.PI / 2 + (2 * Math.PI * i) / Math.max(roots.length, 1);
+    const r = rootRadius + (i % 2 === 0 ? 0 : 20);
+    const ax = Math.cos(angle) * r, ay = Math.sin(angle) * r;
+    if (!manualPositions[root.id]) {
+      nodePositions.set(root.id, { x: ax, y: ay });
+    }
+    const pos = nodePositions.get(root.id);
+    layoutChildren(root.id, pos.x, pos.y, angle, 1);
+  });
+}
+
+function layoutChildren(parentId, px, py, parentAngle, depth) {
+  const children = ideas.filter(i => i.parentId === parentId);
+  if (children.length === 0) return;
+
+  const spread = Math.PI * 0.6; // how wide children fan out
+  const childRadius = Math.max(100, 120 - depth * 10);
+  const startAngle = parentAngle - spread / 2;
+
+  children.forEach((child, i) => {
+    const angle = children.length === 1
+      ? parentAngle
+      : startAngle + (spread * i) / (children.length - 1);
+    if (!manualPositions[child.id]) {
+      const cx = px + Math.cos(angle) * childRadius;
+      const cy = py + Math.sin(angle) * childRadius;
+      nodePositions.set(child.id, { x: cx, y: cy });
+    }
+    const pos = nodePositions.get(child.id);
+    layoutChildren(child.id, pos.x, pos.y, angle, depth + 1);
+  });
+}
+
+function wrapText(text, maxChars) {
+  const words = text.split(' ');
+  const lines = []; let line = '';
+  for (const w of words) {
+    if (line.length + w.length + 1 > maxChars && line.length > 0) { lines.push(line); line = w; }
+    else { line = line ? line + ' ' + w : w; }
+  }
+  if (line) lines.push(line);
+  return lines.length > 3 ? [...lines.slice(0, 3), '...'] : lines;
+}
+
+function drawMap() {
+  pulse += 0.02;
+  computeTreeLayout();
+
+  const panel = $('panelRight');
+  const W = panel.clientWidth, H = panel.clientHeight;
+  const centerX = W / 2 + cam.x, centerY = H / 2 + cam.y;
+  const z = cam.zoom;
+
+  ctx.clearRect(0, 0, W, H);
+
+  // Grid dots
+  const gridSize = 40 * z;
+  if (gridSize > 8) {
+    const offX = (centerX % gridSize + gridSize) % gridSize;
+    const offY = (centerY % gridSize + gridSize) % gridSize;
+    ctx.fillStyle = '#0A0A0A';
+    for (let gx = offX; gx < W; gx += gridSize) {
+      for (let gy = offY; gy < H; gy += gridSize) {
+        ctx.beginPath(); ctx.arc(gx, gy, 1, 0, Math.PI * 2); ctx.fill();
+      }
+    }
+  }
+
+  nodeRects = [];
+
+  if (ideas.length === 0) {
+    ctx.save(); ctx.fillStyle = '#1A1A1A'; ctx.font = '500 14px Inter, sans-serif';
+    ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+    ctx.fillText('Add ideas to see the mind map', W / 2, H / 2);
+    ctx.restore(); requestAnimationFrame(drawMap); return;
+  }
+
+  const idSet = new Set(ideas.map(i => i.id));
+
+  // Draw connection lines
+  for (const idea of ideas) {
+    const pos = nodePositions.get(idea.id);
+    if (!pos) continue;
+    const sx = centerX + pos.x * z, sy = centerY + pos.y * z;
+
+    if (idea.parentId && idSet.has(idea.parentId)) {
+      // Line to parent node
+      const parentPos = nodePositions.get(idea.parentId);
+      if (parentPos) {
+        const px = centerX + parentPos.x * z, py = centerY + parentPos.y * z;
+        const color = '#A855F7'; // purple for connections between ideas
+        const alpha = 0.3 + Math.sin(pulse + ideas.indexOf(idea)) * 0.05;
+        ctx.save();
+        ctx.strokeStyle = color; ctx.globalAlpha = alpha; ctx.lineWidth = 1.5 * z;
+        ctx.shadowColor = color; ctx.shadowBlur = 8 * z;
+        const midX = (px + sx) / 2, midY = (py + sy) / 2;
+        const perpX = -(sy - py) * 0.12, perpY = (sx - px) * 0.12;
+        ctx.beginPath(); ctx.moveTo(px, py);
+        ctx.quadraticCurveTo(midX + perpX, midY + perpY, sx, sy);
+        ctx.stroke(); ctx.restore();
+      }
+    } else {
+      // Root: line to center hub
+      const color = idea.done ? '#22C55E' : '#22D3EE';
+      const alpha = idea.done ? 0.1 : 0.18 + Math.sin(pulse + ideas.indexOf(idea)) * 0.04;
+      ctx.save();
+      ctx.strokeStyle = color; ctx.globalAlpha = alpha; ctx.lineWidth = 1.5 * z;
+      ctx.shadowColor = color; ctx.shadowBlur = 8 * z;
+      const midX = (centerX + sx) / 2, midY = (centerY + sy) / 2;
+      const perpX = -(sy - centerY) * 0.1, perpY = (sx - centerX) * 0.1;
+      ctx.beginPath(); ctx.moveTo(centerX, centerY);
+      ctx.quadraticCurveTo(midX + perpX, midY + perpY, sx, sy);
+      ctx.stroke(); ctx.restore();
+    }
+  }
+
+  // Center hub
+  const hubR = 30 * z;
+  ctx.save();
+  ctx.shadowColor = '#22D3EE'; ctx.shadowBlur = 24 * z;
+  ctx.fillStyle = '#0A0A0A';
+  ctx.beginPath(); ctx.arc(centerX, centerY, hubR, 0, Math.PI * 2); ctx.fill();
+  ctx.strokeStyle = '#22D3EE';
+  ctx.globalAlpha = 0.3 + Math.sin(pulse * 1.5) * 0.1;
+  ctx.lineWidth = 1.5 * z; ctx.stroke(); ctx.restore();
+
+  ctx.save(); ctx.fillStyle = '#22D3EE';
+  ctx.font = `700 ${12 * z}px Inter, sans-serif`;
+  ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+  ctx.fillText('PLANz', centerX, centerY); ctx.restore();
+
+  // Draw nodes
+  for (const idea of ideas) {
+    const pos = nodePositions.get(idea.id);
+    if (!pos) continue;
+    const nx = centerX + pos.x * z, ny = centerY + pos.y * z;
+    const done = idea.done;
+    const idx = ideas.indexOf(idea);
+    const isHov = hoveredNode === idx;
+    const isLinkSrc = linkSource === idea.id;
+    const hasParent = idea.parentId && idSet.has(idea.parentId);
+
+    const lines = wrapText(idea.text, 22);
+    const lineH = 15 * z;
+    const padX = 14 * z, padY = 10 * z;
+    const rankH = 12 * z;
+    const totalTextH = rankH + 5 * z + lines.length * lineH;
+    const nodeW = Math.max(110 * z, Math.min(190 * z, lines.reduce((mx, l) => Math.max(mx, l.length * 6.8 * z), 0) + padX * 2));
+    const nodeH = totalTextH + padY * 2;
+    const left = nx - nodeW / 2, top = ny - nodeH / 2;
+
+    nodeRects.push({ x: left, y: top, w: nodeW, h: nodeH, idx, id: idea.id });
+
+    // Background
+    ctx.save();
+    const borderColor = isLinkSrc ? '#A855F7'
+      : hasParent ? (isHov ? '#A855F7' : 'rgba(168,85,247,0.2)')
+      : done ? (isHov ? '#22C55E' : 'rgba(34,197,94,0.2)')
+      : (isHov ? '#22D3EE' : 'rgba(34,211,238,0.1)');
+    const glowColor = isLinkSrc ? '#A855F7' : hasParent ? 'rgba(168,85,247,0.15)' : done ? 'rgba(34,197,94,0.1)' : 'rgba(34,211,238,0.12)';
+    ctx.shadowColor = isHov || isLinkSrc ? borderColor : glowColor;
+    ctx.shadowBlur = (isHov || isLinkSrc ? 18 : 5) * z;
+
+    const r = 8 * z;
+    ctx.fillStyle = isHov ? '#1A1A1A' : '#121212';
+    ctx.beginPath(); ctx.roundRect(left, top, nodeW, nodeH, r); ctx.fill();
+    ctx.strokeStyle = borderColor;
+    ctx.lineWidth = (isHov || isLinkSrc ? 1.5 : 1) * z;
+    ctx.stroke(); ctx.restore();
+
+    if (done) {
+      ctx.save(); ctx.globalAlpha = 0.06; ctx.fillStyle = '#22C55E';
+      ctx.beginPath(); ctx.roundRect(left, top, nodeW, nodeH, r); ctx.fill(); ctx.restore();
+    }
+
+    // Rank
+    ctx.save();
+    ctx.font = `600 ${10 * z}px Inter, sans-serif`;
+    ctx.fillStyle = hasParent ? '#A855F7' : done ? '#22C55E' : '#22D3EE';
+    ctx.globalAlpha = done ? 0.4 : 0.6;
+    ctx.textAlign = 'left'; ctx.textBaseline = 'top';
+    ctx.fillText(`#${idx + 1}`, left + padX, top + padY);
+    ctx.restore();
+
+    // Status badge
+    if (done) {
+      ctx.save(); ctx.font = `600 ${10 * z}px Inter, sans-serif`;
+      ctx.fillStyle = '#22C55E'; ctx.globalAlpha = 0.5;
+      ctx.textAlign = 'right'; ctx.textBaseline = 'top';
+      ctx.fillText('DONE', left + nodeW - padX, top + padY); ctx.restore();
+    } else if (hasParent) {
+      ctx.save(); ctx.font = `500 ${9 * z}px Inter, sans-serif`;
+      ctx.fillStyle = '#A855F7'; ctx.globalAlpha = 0.4;
+      ctx.textAlign = 'right'; ctx.textBaseline = 'top';
+      ctx.fillText('linked', left + nodeW - padX, top + padY); ctx.restore();
+    }
+
+    // Text
+    ctx.save();
+    ctx.font = `500 ${12 * z}px Inter, sans-serif`;
+    ctx.fillStyle = done ? '#6B7280' : '#E0E0E0';
+    ctx.globalAlpha = done ? 0.4 : 1;
+    ctx.textAlign = 'left'; ctx.textBaseline = 'top';
+    const textStartY = top + padY + rankH + 5 * z;
+    for (let li = 0; li < lines.length; li++) ctx.fillText(lines[li], left + padX, textStartY + li * lineH);
+    if (done) {
+      ctx.strokeStyle = '#6B7280'; ctx.globalAlpha = 0.2; ctx.lineWidth = 1 * z;
+      for (let li = 0; li < lines.length; li++) {
+        const tw = ctx.measureText(lines[li]).width;
+        const ly = textStartY + li * lineH + lineH * 0.45;
+        ctx.beginPath(); ctx.moveTo(left + padX, ly); ctx.lineTo(left + padX + tw, ly); ctx.stroke();
+      }
+    }
+    ctx.restore();
+  }
+
+  // Draw link preview line (when dragging in link mode)
+  if (linkMode && linkSource) {
+    const srcPos = nodePositions.get(linkSource);
+    if (srcPos) {
+      const sx = centerX + srcPos.x * z, sy = centerY + srcPos.y * z;
+      ctx.save();
+      ctx.strokeStyle = '#A855F7'; ctx.globalAlpha = 0.5;
+      ctx.lineWidth = 2 * z; ctx.setLineDash([6 * z, 4 * z]);
+      ctx.shadowColor = '#A855F7'; ctx.shadowBlur = 10 * z;
+      ctx.beginPath(); ctx.moveTo(sx, sy); ctx.lineTo(mouseX, mouseY);
+      ctx.stroke(); ctx.restore();
+    }
+  }
+
+  requestAnimationFrame(drawMap);
+}
+
+// Canvas mouse events
+canvas.addEventListener('mousedown', e => {
+  const rect = canvas.getBoundingClientRect();
+  const mx = e.clientX - rect.left, my = e.clientY - rect.top;
+
+  // Find clicked node
+  let clickedNode = null;
+  for (const nr of nodeRects) {
+    if (mx >= nr.x && mx <= nr.x + nr.w && my >= nr.y && my <= nr.y + nr.h) {
+      clickedNode = nr; break;
+    }
+  }
+
+  if (linkMode) {
+    if (!clickedNode) {
+      // Clicked empty space: cancel link
+      linkSource = null; updateMapStatus();
+      return;
+    }
+    if (!linkSource) {
+      // First click: set source
+      linkSource = clickedNode.id;
+      updateMapStatus();
+    } else {
+      // Second click: set target
+      const targetId = clickedNode.id;
+      if (targetId === linkSource) {
+        // Clicked same node: cancel
+        linkSource = null; updateMapStatus(); return;
+      }
+      const target = ideas.find(i => i.id === targetId);
+      if (target) {
+        if (target.parentId === linkSource) {
+          // Already linked to this source: unlink
+          target.parentId = null;
+        } else {
+          // Check for circular: target can't be an ancestor of source
+          let ok = true;
+          let check = linkSource;
+          while (check) {
+            if (check === targetId) { ok = false; break; }
+            const p = ideas.find(i => i.id === check);
+            check = p ? p.parentId : null;
+          }
+          if (ok) target.parentId = linkSource;
+        }
+        save(); render();
+      }
+      linkSource = null; updateMapStatus();
+    }
+    return;
+  }
+
+  // Normal mode: start dragging node
+  if (clickedNode) {
+    const pos = nodePositions.get(clickedNode.id);
+    nodeDrag = { active: true, id: clickedNode.id, sx: mx, sy: my, ox: pos.x, oy: pos.y, moved: false };
+    return;
+  }
+
+  // Pan
+  mapDrag = { active: true, sx: mx, sy: my, cx: cam.x, cy: cam.y };
+});
+
+canvas.addEventListener('mousemove', e => {
+  const rect = canvas.getBoundingClientRect();
+  const mx = e.clientX - rect.left, my = e.clientY - rect.top;
+  mouseX = mx; mouseY = my;
+
+  if (nodeDrag.active) {
+    const z = cam.zoom;
+    const dx = (mx - nodeDrag.sx) / z, dy = (my - nodeDrag.sy) / z;
+    if (Math.abs(mx - nodeDrag.sx) > 3 || Math.abs(my - nodeDrag.sy) > 3) nodeDrag.moved = true;
+    manualPositions[nodeDrag.id] = { x: nodeDrag.ox + dx, y: nodeDrag.oy + dy };
+    canvas.style.cursor = 'grabbing';
+    return;
+  }
+
+  if (mapDrag.active) { cam.x = mapDrag.cx + (mx - mapDrag.sx); cam.y = mapDrag.cy + (my - mapDrag.sy); return; }
+
+  let found = -1;
+  for (const nr of nodeRects) {
+    if (mx >= nr.x && mx <= nr.x + nr.w && my >= nr.y && my <= nr.y + nr.h) { found = nr.idx; break; }
+  }
+  if (found !== hoveredNode) {
+    hoveredNode = found;
+    if (linkMode) canvas.style.cursor = found >= 0 ? 'pointer' : 'crosshair';
+    else canvas.style.cursor = found >= 0 ? 'grab' : 'grab';
+  }
+});
+
+canvas.addEventListener('mouseup', () => {
+  if (nodeDrag.active) {
+    if (nodeDrag.moved) {
+      savePositions();
+    } else {
+      // Click without drag: toggle done
+      toggleDoneState(nodeDrag.id); save();
+    }
+    nodeDrag.active = false;
+    return;
+  }
+  mapDrag.active = false;
+});
+canvas.addEventListener('mouseleave', () => { mapDrag.active = false; nodeDrag.active = false; hoveredNode = -1; });
+
+canvas.addEventListener('wheel', e => {
+  e.preventDefault();
+  cam.zoom = Math.max(0.3, Math.min(3, cam.zoom * (e.deltaY < 0 ? 1.1 : 0.9)));
+}, { passive: false });
+
+document.addEventListener('keydown', e => {
+  if (e.key === 'Escape' && linkMode) toggleLinkMode();
+});
+
+// Init
+resizeCanvas();
+render();
+renderSaved();
+drawMap();
+</script>
+</body>
+</html>
