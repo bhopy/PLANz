@@ -1,0 +1,8 @@
+node_modules/
+src-tauri/target/
+src-tauri/gen/
+*.msi
+*.exe
+desktop.ini
+Thumbs.db
+.DS_Store
